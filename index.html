@@ -278,7 +278,7 @@ function askSeller() {
   for(const s of SELLERS) {
     const used = getUsedCount(s);
     const avail = (s.end - s.start + 1) - used;
-    html += `<div onclick="setSeller(${JSON.stringify(s)})" style="padding:13px;border:0.5px solid #333;border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onmouseenter="this.style.borderColor='#cc0000'" onmouseleave="this.style.borderColor='#333'">
+    html += `<div onclick="setSeller(${SELLERS.indexOf(s)})" style="padding:13px;border:0.5px solid #333;border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onmouseenter="this.style.borderColor='#cc0000'" onmouseleave="this.style.borderColor='#333'">
       <div><div style="font-size:15px;font-weight:600;color:white;">${s.name}</div><div style="font-size:11px;color:#666;margin-top:2px;">#${String(s.start).padStart(4,'0')} – #${String(s.end).padStart(4,'0')}</div></div>
       <div style="text-align:right;"><div style="font-size:13px;font-weight:600;color:#cc0000;">${avail}</div><div style="font-size:10px;color:#555;">disponibles</div></div>
     </div>`;
@@ -315,6 +315,7 @@ function markUsed(seller, n) {
 }
 
 function setSeller(s) {
+  if(typeof s === "number") s = SELLERS[s];
   currentSeller = s;
   const overlay = document.getElementById('seller-overlay');
   if(overlay) overlay.remove();
