@@ -42,7 +42,7 @@ body{background:#0a0a0a;color:white;font-family:-apple-system,BlinkMacSystemFont
 #login-error{color:#f44336;font-size:12px;margin-top:10px;text-align:center;display:none;}
 
 /* ── VALIDATOR ── */
-#reader-container{background:#000;width:100%;} #reader video{width:100%!important;max-height:200px;object-fit:cover;} #reader{width:100%!important;} #reader>div{border-radius:0!important;}
+#reader-container{background:#000;width:100%;} #reader video{width:100%!important;} #reader{width:100%!important;}
 .result-area{padding:12px 14px;flex:1;overflow-y:auto;}
 #result-box{border-radius:10px;padding:14px;margin-bottom:12px;display:none;animation:fadeIn 0.2s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
@@ -118,7 +118,7 @@ body{background:#0a0a0a;color:white;font-family:-apple-system,BlinkMacSystemFont
 </div>
 
 <!-- ══ VALIDATOR ══ -->
-<div id="val-screen" class="screen" style="height:100vh;height:100dvh;overflow:hidden;">
+<div id="val-screen" class="screen">
   <div class="top-bar">
     <h2>✦ VALIDADOR</h2>
     <div class="top-bar-right">
@@ -126,25 +126,20 @@ body{background:#0a0a0a;color:white;font-family:-apple-system,BlinkMacSystemFont
       <button class="logout-btn" onclick="doLogout()">Salir</button>
     </div>
   </div>
-  <!-- Result status bar - fixed -->
-  <div id="status-bar" style="flex-shrink:0;padding:12px 16px;text-align:center;transition:background 0.3s;background:#1a1a1a;">
-    <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
-      <div id="status-icon" style="font-size:28px;line-height:1;"></div>
-      <div>
-        <div id="status-main" style="font-size:18px;font-weight:800;letter-spacing:1px;color:white;text-align:left;"></div>
-        <div id="status-detail" style="font-size:11px;color:rgba(255,255,255,0.6);text-align:left;margin-top:2px;"></div>
-      </div>
-    </div>
+  <!-- Status bar -->
+  <div id="status-bar" style="display:none;padding:14px 16px;text-align:center;transition:background 0.2s;">
+    <div id="status-icon" style="font-size:32px;margin-bottom:4px;"></div>
+    <div id="status-main" style="font-size:18px;font-weight:800;color:white;"></div>
+    <div id="status-detail" style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:3px;"></div>
   </div>
 
-  <!-- Camera - fixed, compact -->
-  <div id="reader-container" style="flex-shrink:0;background:#000;width:100%;max-height:200px;overflow:hidden;">
+  <!-- Camera -->
+  <div id="reader-container" style="background:#000;width:100%;">
     <div id="reader" style="width:100%;"></div>
   </div>
 
-  <!-- History - scrollable -->
-  <div style="flex:1;overflow-y:auto;padding:10px 14px;min-height:0;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+  <div class="result-area">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <div class="section-title" style="margin:0;">Historial de sesión</div>
       <button class="btn-outline btn-sm" onclick="resetSession()">↺ Reiniciar</button>
     </div>
@@ -387,11 +382,7 @@ function saveScannedToStorage() {
 }
 
 function initStatusBar() {
-  const bar = document.getElementById('status-bar');
-  bar.style.background = '#1a1a1a';
-  document.getElementById('status-icon').textContent = '📷';
-  document.getElementById('status-main').textContent = 'Listo para escanear';
-  document.getElementById('status-detail').textContent = 'Apunta al QR de la entrada';
+  document.getElementById('status-bar').style.display = 'none';
 }
 
 function loadScannedFromStorage() {
@@ -468,8 +459,9 @@ function showResult(type,status,name,detail) {
   const bar = document.getElementById('status-bar');
   const colors = {valid:'#1b5e20', invalid:'#b71c1c', used:'#e65100'};
   const icons  = {valid:'✅', invalid:'❌', used:'⚠️'};
-  bar.style.background = colors[type] || '#1a1a1a';
-  document.getElementById('status-icon').textContent = icons[type] || '–';
+  bar.style.background = colors[type] || '#333';
+  bar.style.display = 'block';
+  document.getElementById('status-icon').textContent = icons[type] || '?';
   document.getElementById('status-main').textContent = status;
   document.getElementById('status-detail').textContent = detail || name;
 }
