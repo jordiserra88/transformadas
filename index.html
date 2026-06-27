@@ -370,10 +370,12 @@ function doLogout() {
   scanned={}; scanCount=0; issuedTickets=[];
   document.getElementById('counter').textContent='0';
   document.getElementById('history-list').innerHTML='';
-  document.getElementById('result-box').style.display='none';
+  if(document.getElementById('result-box')) document.getElementById('result-box').style.display='none';
+  if(document.getElementById('status-bar')) document.getElementById('status-bar').style.display='none';
   document.getElementById('issued-list').innerHTML='';
   document.getElementById('csv-section').style.display='none';
   document.getElementById('pw-input').value='';
+  // Go back to login keeping current mode tab selected
   showScreen('login-screen');
 }
 
