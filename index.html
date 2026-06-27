@@ -788,6 +788,124 @@ async function buildPDF(ticketN, code, buyerName, buyerEmail, dateObj, sellerNam
   const pdfUrl = URL.createObjectURL(pdfBlob);
   window.open(pdfUrl, '_blank');
 }
+
+// ── AFORO ──
+const AFORO_URL = "https://script.google.com/macros/s/AKfycbwHwOSZF7jhH9C8LxYhizAnnxZNubP3DbwpHE4TAurmtsPbO0HxQoK8IRp3HhD2Tx6R/exec";
+const AFORO_MAX = 70;
+const FECHA_LABELS = {
+  '19/09': '19 Sep · 21:00h',
+  '27/09': '27 Sep · 19:30h',
+  '18/10': '18 Oct · 19:30h',
+  '25/10': '25 Oct · 19:30h'
+};
+const SELLER_COLORS = {
+  'Jordi':'#e53935','Nico':'#8e24aa','Roman':'#1e88e5',
+  'Albert':'#43a047','Roberto':'#fb8c00','Johan':'#00acc1'
+};
+
+async function loadAforo() {
+  document.getElementById('aforo-loading').style.display='block';
+  document.getElementById('aforo-content').style.display='none';
+  try {
+    const resp = await fetch(AFORO_URL);
+    const json = await resp.json();
+    if(json.status !== 'ok') throw new Error(json.msg);
+    renderAforo(json.data);
+  } catch(e) {
+    document.getElementById('aforo-loading').innerHTML = `<div style="color:#f44336;text-align:center;padding:40px;">❌ Error al cargar datos<br><small style="color:#888">${e.message}</small></div>`;
+  }
+}
+
+function renderAforo(data) {
+  const sheets = ['19/09','27/09','18/10','25/10'];
+  let gTotal=0, gPagado=0;
+  const vendedorStats = {};
+  const fechaContainer = document.getElementById('fechas-container');
+  fechaContainer.innerHTML = '';
+
+  for(const sheet of sheets) {
+    const rows = data[sheet] || [];
+    const total = rows.length;
+    const pagado = rows.filter(r=>r.pagado).length;
+    const pendiente = total - pagado;
+    const pct = AFORO_MAX > 0 ? Math.round(total/AFORO_MAX*100) : 0;
+    const libre = AFORO_MAX - total;
+    gTotal += total; gPagado += pagado;
+
+    const byVendedor = {};
+    for(const r of rows) {
+      const v = r.vendedor || 'Otros';
+      if(!byVendedor[v]) byVendedor[v] = 0;
+      byVendedor[v]++;
+    }
+    for(const [v,n] of Object.entries(byVendedor)) {
+      if(!vendedorStats[v]) vendedorStats[v] = {total:0, pagado:0};
+      vendedorStats[v].total += n;
+      vendedorStats[v].pagado += rows.filter(r=>r.vendedor===v && r.pagado).length;
+    }
+
+    const barColor = pct >= 90 ? '#f44336' : pct >= 70 ? '#ff9800' : '#cc0000';
+    const vendedorHtml = Object.entries(byVendedor)
+      .sort((a,b)=>b[1]-a[1])
+      .map(([v,n])=>`<span style="background:${SELLER_COLORS[v]||'#555'};color:white;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:600;">${v} ${n}</span>`)
+      .join(' ');
+
+    fechaContainer.innerHTML += `
+      <div style="background:#111;border:0.5px solid #333;border-radius:10px;padding:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:700;color:white;">${FECHA_LABELS[sheet]}</div>
+          <div style="font-size:11px;color:#888;">${libre > 0 ? libre+' libres' : '🔴 COMPLETO'}</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <div style="flex:1;background:#1a1a1a;border-radius:6px;padding:8px;text-align:center;">
+            <div style="font-size:20px;font-weight:800;color:${barColor};">${total}<span style="font-size:11px;color:#555;">/${AFORO_MAX}</span></div>
+            <div style="font-size:9px;color:#888;">VENDIDAS</div>
+          </div>
+          <div style="flex:1;background:#0d2e0d;border-radius:6px;padding:8px;text-align:center;">
+            <div style="font-size:20px;font-weight:800;color:#4caf50;">${pagado}</div>
+            <div style="font-size:9px;color:#888;">PAGADAS</div>
+          </div>
+          <div style="flex:1;background:#2e1a0d;border-radius:6px;padding:8px;text-align:center;">
+            <div style="font-size:20px;font-weight:800;color:#ff9800;">${pendiente}</div>
+            <div style="font-size:9px;color:#888;">PENDIENTES</div>
+          </div>
+        </div>
+        <div style="background:#1a1a1a;border-radius:4px;height:6px;overflow:hidden;margin-bottom:8px;">
+          <div style="height:100%;background:${barColor};border-radius:4px;width:${pct}%;transition:width 0.5s;"></div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${vendedorHtml}</div>
+      </div>`;
+  }
+
+  const gPendiente = gTotal - gPagado;
+  const gPct = Math.round(gTotal / (AFORO_MAX*4) * 100);
+  document.getElementById('g-total').textContent = gTotal;
+  document.getElementById('g-pagado').textContent = gPagado;
+  document.getElementById('g-pendiente').textContent = gPendiente;
+  document.getElementById('g-pct').textContent = gPct + '%';
+  document.getElementById('g-bar').style.width = gPct + '%';
+
+  const vContainer = document.getElementById('vendedores-container');
+  vContainer.innerHTML = '';
+  const sellers = ['Jordi','Nico','Roman','Albert','Roberto','Johan'];
+  for(const v of sellers) {
+    const s = vendedorStats[v] || {total:0, pagado:0};
+    const pend = s.total - s.pagado;
+    const color = SELLER_COLORS[v] || '#555';
+    vContainer.innerHTML += `
+      <div style="display:flex;align-items:center;padding:10px 12px;border-bottom:0.5px solid #1a1a1a;gap:10px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+        <div style="flex:1;font-size:13px;font-weight:600;color:white;">${v}</div>
+        <div style="font-size:13px;font-weight:700;color:${color};min-width:24px;text-align:center;">${s.total}</div>
+        <div style="font-size:11px;color:#4caf50;min-width:24px;text-align:center;">✅${s.pagado}</div>
+        <div style="font-size:11px;color:#ff9800;min-width:24px;text-align:center;">${pend > 0 ? '⏳'+pend : '—'}</div>
+      </div>`;
+  }
+
+  document.getElementById('aforo-loading').style.display = 'none';
+  document.getElementById('aforo-content').style.display = 'block';
+}
+
 </script>
 <!-- ══ AFORO ══ -->
 <div id="aforo-screen" class="screen">
