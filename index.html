@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>TRANSFORMADAS</title>
-<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
@@ -41,7 +41,7 @@ body{background:#0a0a0a;color:white;font-family:-apple-system,BlinkMacSystemFont
 #login-error{color:#f44336;font-size:12px;margin-top:10px;text-align:center;display:none;}
 
 /* ── VALIDATOR ── */
-#reader-container{background:#000;width:100%;}
+#reader-container{background:#000;width:100%;} #reader video{width:100%!important;} #reader{width:100%!important;}
 .result-area{padding:14px;flex:1;overflow-y:auto;}
 #result-box{border-radius:10px;padding:14px;margin-bottom:12px;display:none;animation:fadeIn 0.2s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
@@ -125,11 +125,8 @@ body{background:#0a0a0a;color:white;font-family:-apple-system,BlinkMacSystemFont
       <button class="logout-btn" onclick="doLogout()">Salir</button>
     </div>
   </div>
-  <div id="reader-container" style="position:relative;background:#000;width:100%;overflow:hidden;">
-  <video id="reader-video" style="width:100%;display:block;" autoplay muted playsinline></video>
-  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
-    <div style="width:220px;height:220px;border:2px solid rgba(204,0,0,0.7);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,0.35);"></div>
-  </div>
+  <div id="reader-container" style="background:#000;width:100%;">
+  <div id="reader" style="width:100%;"></div>
 </div>
   <div class="result-area">
     <div id="result-box">
@@ -349,7 +346,7 @@ function showScreen(id) {
 }
 
 function doLogout() {
-  if(scanner) { try{ scanner.stopAsyncDecode(); scanner.reset(); }catch(e){} scanner=null; }
+  if(scanner) { try{ scanner.stop(); }catch(e){} scanner=null; }
   validCodesVal=null; validCodesGen=null; currentSeller=null;
   scanned={}; scanCount=0; issuedTickets=[];
   document.getElementById('counter').textContent='0';
@@ -396,15 +393,22 @@ function loadScannedFromStorage() {
 }
 
 function startScanner() {
-  const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
-  codeReader.decodeFromConstraints(
-    { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } },
-    "reader-video",
-    (result, err) => {
-      if (result) onScanSuccess(result.getText());
+  scanner = new Html5Qrcode("reader");
+  const config = {
+    fps: 15,
+    aspectRatio: 1.5,
+    videoConstraints: {
+      facingMode: "environment",
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
     }
+  };
+  scanner.start(
+    { facingMode: "environment" },
+    config,
+    onScanSuccess,
+    () => {}
   );
-  scanner = codeReader;
 }
 
 function onScanSuccess(text) {
