@@ -42,7 +42,7 @@ body{background:#0a0a0a;color:white;font-family:-apple-system,BlinkMacSystemFont
 #login-error{color:#f44336;font-size:12px;margin-top:10px;text-align:center;display:none;}
 
 /* ── VALIDATOR ── */
-#reader-container{background:#000;width:100%;max-height:220px;overflow:hidden;} #reader video{width:100%!important;object-fit:cover;} #reader{width:100%!important;}
+#reader-container{background:#000;width:100%;} #reader video{width:100%!important;} #reader{width:100%!important;}
 .result-area{padding:12px 14px;flex:1;overflow-y:auto;}
 #result-box{border-radius:10px;padding:14px;margin-bottom:12px;display:none;animation:fadeIn 0.2s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
@@ -135,7 +135,7 @@ body{background:#0a0a0a;color:white;font-family:-apple-system,BlinkMacSystemFont
   </div>
 
   <!-- Camera - compact -->
-  <div id="reader-container" style="background:#000;width:100%;max-height:220px;overflow:hidden;">
+  <div id="reader-container" style="background:#000;width:100%;">
     <div id="reader" style="width:100%;"></div>
   </div>
 
@@ -404,8 +404,8 @@ function startScanner() {
   scanner = new Html5Qrcode("reader");
   const config = {
     fps: 15,
-    aspectRatio: 16/9,
-    qrbox: { width: 200, height: 200 },
+    aspectRatio: 4/3,
+    qrbox: { width: 250, height: 250 },
     videoConstraints: {
       facingMode: "environment",
       width: { ideal: 1280 },
@@ -425,31 +425,25 @@ function onScanSuccess(text) {
   if(text===lastScan && now-lastScanTime<3000) return;
   lastScan=text; lastScanTime=now;
 
-  const parts = text.split('|');
-  if(parts.length<4 || parts[0]!=='TRANSFORMADAS') {
-    showResult('invalid','❌ QR INVÁLIDO','Formato no reconocido','');
-    addHistory('Desconocido','—','—','bad','❌'); return;
-  }
-  const code=parts[1], name=parts[2]||'—', dateRaw=parts[3]||'';
-  const dateMap={'19/09/2025':'19 sep · 21:00 h','27/09/2025':'27 sep · 19:30 h','18/10/2025':'18 oct · 19:30 h','25/10/2025':'25 oct · 19:30 h'};
-  const dateLabel = dateMap[dateRaw]||dateRaw;
+  // QR contains just the code: TRANSF-0001-XXXXXXXX
+  const code = text.trim();
 
   if(!validCodesVal.has(code)) {
-    showResult('invalid','❌ ENTRADA INVÁLIDA',name,`Código no reconocido`);
-    addHistory(name,code,dateLabel,'bad','❌'); return;
+    showResult('invalid','❌ INVÁLIDA','Código no reconocido', code);
+    addHistory('—',code,'—','bad','❌'); return;
   }
   if(scanned[code]) {
     const ago=Math.round((Date.now()-scanned[code].time)/1000);
     const agoStr=ago<60?`hace ${ago}s`:`hace ${Math.round(ago/60)} min`;
-    showResult('used','⚠️ YA ESCANEADA',name,`Escaneada ${agoStr} · ${dateLabel}`);
-    addHistory(name,code,dateLabel,'dup','⚠️'); return;
+    showResult('used','⚠️ YA ESCANEADA','',`Escaneada ${agoStr}`);
+    addHistory('—',code,'—','dup','⚠️'); return;
   }
-  scanned[code]={name,time:Date.now()};
+  scanned[code]={time:Date.now()};
   scanCount++;
   document.getElementById('counter').textContent=scanCount;
   saveScannedToStorage();
-  showResult('valid','✅ ENTRADA VÁLIDA',name,`${code} · ${dateLabel}`);
-  addHistory(name,code,dateLabel,'ok','✅');
+  showResult('valid','✅ VÁLIDA','', code);
+  addHistory('—',code,'—','ok','✅');
 }
 
 function showResult(type,status,name,detail) {
@@ -698,7 +692,7 @@ async function buildPDF(ticketN, code, buyerName, buyerEmail, dateObj, sellerNam
   doc.text('✂',W-11,tearY+1);
 
   // QR code generation using qrious
-  const qrPayload=`TRANSFORMADAS|${code}|${buyerName}|${dateObj.date}|35EUR`;
+  const qrPayload=code;
   const qrCanvas = document.createElement('canvas');
   document.getElementById('qr-tmp').appendChild(qrCanvas);
   new QRious({
