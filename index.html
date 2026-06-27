@@ -541,11 +541,13 @@ function saveIssuedToStorage() {
 
 async function syncToSheets(ticket) {
   try {
+    // Apps Script requires form-encoded data with no-cors
+    const form = new FormData();
+    form.append('data', JSON.stringify(ticket));
     await fetch(SHEETS_URL, {
       method: 'POST',
       mode: 'no-cors',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(ticket)
+      body: form
     });
   } catch(e) {
     console.warn('No se pudo sincronizar con Sheets:', e);
