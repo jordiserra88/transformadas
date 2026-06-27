@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>TRANSFORMADAS</title>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
@@ -42,7 +42,6 @@ body{background:#0a0a0a;color:white;font-family:-apple-system,BlinkMacSystemFont
 
 /* ── VALIDATOR ── */
 #reader-container{background:#000;width:100%;}
-#reader{width:100%;}
 .result-area{padding:14px;flex:1;overflow-y:auto;}
 #result-box{border-radius:10px;padding:14px;margin-bottom:12px;display:none;animation:fadeIn 0.2s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
@@ -84,8 +83,8 @@ body{background:#0a0a0a;color:white;font-family:-apple-system,BlinkMacSystemFont
 .gen-actions{display:flex;gap:10px;}
 #csv-section{margin-top:16px;padding-top:14px;border-top:0.5px solid #1a1a1a;}
 #issued-list{list-style:none;}
-#issued-list li{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid #1a1a1a;font-size:11px;gap:6px;}
-.il-name{color:#ccc;flex:1;}
+#issued-list li{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:0.5px solid #1a1a1a;font-size:11px;gap:10px;}
+.il-name{color:#ccc;}
 .il-code{color:#cc0000;font-family:monospace;font-size:10px;}
 .il-date{color:#666;font-size:10px;}
 #gen-error{color:#f44336;font-size:12px;margin-top:8px;display:none;text-align:center;}
@@ -126,7 +125,12 @@ body{background:#0a0a0a;color:white;font-family:-apple-system,BlinkMacSystemFont
       <button class="logout-btn" onclick="doLogout()">Salir</button>
     </div>
   </div>
-  <div id="reader-container"><div id="reader"></div></div>
+  <div id="reader-container" style="position:relative;background:#000;width:100%;overflow:hidden;">
+  <video id="reader-video" style="width:100%;display:block;" autoplay muted playsinline></video>
+  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+    <div style="width:220px;height:220px;border:2px solid rgba(204,0,0,0.7);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,0.35);"></div>
+  </div>
+</div>
   <div class="result-area">
     <div id="result-box">
       <div class="result-status" id="result-status"></div>
@@ -174,6 +178,10 @@ body{background:#0a0a0a;color:white;font-family:-apple-system,BlinkMacSystemFont
         <option value="2">18/10/2025 · 19:30 h</option>
         <option value="3">25/10/2025 · 19:30 h</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label>Precio (€)</label>
+      <input type="text" id="f-price" placeholder="35,00" autocomplete="off">
     </div>
 
     <div class="ticket-preview" id="ticket-preview">
@@ -254,6 +262,7 @@ async function doLogin() {
     for(const arr of OBF_VAL) validCodesVal.add(deobfuscate(arr, pwHash));
     showScreen('val-screen');
     startScanner();
+    loadScannedFromStorage();
   } else {
     const test = deobfuscate(OBF_GEN[0], pwHash);
     if(!test.startsWith('TRANSF-')) { showLoginError(); return; }
@@ -321,6 +330,7 @@ function setSeller(s) {
   if(overlay) overlay.remove();
   updateSellerInfo();
   showScreen('gen-screen');
+  loadIssuedFromStorage();
 }
 
 function updateSellerInfo() {
@@ -339,7 +349,7 @@ function showScreen(id) {
 }
 
 function doLogout() {
-  if(scanner) { try{ scanner.stop(); }catch(e){} scanner=null; }
+  if(scanner) { try{ scanner.stopAsyncDecode(); scanner.reset(); }catch(e){} scanner=null; }
   validCodesVal=null; validCodesGen=null; currentSeller=null;
   scanned={}; scanCount=0; issuedTickets=[];
   document.getElementById('counter').textContent='0';
@@ -354,9 +364,47 @@ function doLogout() {
 document.getElementById('pw-input').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
 
 // ── VALIDATOR ──
+function saveScannedToStorage() {
+  const today = new Date().toDateString();
+  localStorage.setItem('scanned_date', today);
+  localStorage.setItem('scanned_data', JSON.stringify(scanned));
+  localStorage.setItem('scanned_count', scanCount);
+}
+
+function loadScannedFromStorage() {
+  const today = new Date().toDateString();
+  const savedDate = localStorage.getItem('scanned_date');
+  // Only load if saved today (reset each new day automatically)
+  if(savedDate !== today) {
+    localStorage.removeItem('scanned_data');
+    localStorage.removeItem('scanned_count');
+    localStorage.removeItem('scanned_date');
+    return;
+  }
+  const savedData = localStorage.getItem('scanned_data');
+  const savedCount = localStorage.getItem('scanned_count');
+  if(savedData) {
+    scanned = JSON.parse(savedData);
+    scanCount = parseInt(savedCount) || 0;
+    document.getElementById('counter').textContent = scanCount;
+    // Rebuild history list
+    const entries = Object.entries(scanned).sort((a,b) => b[1].time - a[1].time);
+    for(const [code, val] of entries) {
+      addHistory(val.name, code, '—', 'ok', '✅');
+    }
+  }
+}
+
 function startScanner() {
-  scanner = new Html5Qrcode("reader");
-  scanner.start({facingMode:"environment"}, {fps:10,qrbox:{width:240,height:240},aspectRatio:1.2}, onScanSuccess, ()=>{});
+  const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+  codeReader.decodeFromConstraints(
+    { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } },
+    "reader-video",
+    (result, err) => {
+      if (result) onScanSuccess(result.getText());
+    }
+  );
+  scanner = codeReader;
 }
 
 function onScanSuccess(text) {
@@ -386,6 +434,7 @@ function onScanSuccess(text) {
   scanned[code]={name,time:Date.now()};
   scanCount++;
   document.getElementById('counter').textContent=scanCount;
+  saveScannedToStorage();
   showResult('valid','✅ ENTRADA VÁLIDA',name,`${code} · ${dateLabel}`);
   addHistory(name,code,dateLabel,'ok','✅');
 }
@@ -408,6 +457,9 @@ function addHistory(name,code,date,badgeClass,icon) {
 function resetSession() {
   if(!confirm('¿Reiniciar historial de sesión?')) return;
   scanned={}; scanCount=0;
+  localStorage.removeItem('scanned_data');
+  localStorage.removeItem('scanned_count');
+  localStorage.removeItem('scanned_date');
   document.getElementById('counter').textContent=0;
   document.getElementById('history-list').innerHTML='';
   document.getElementById('result-box').style.display='none';
@@ -434,16 +486,20 @@ async function generateTicket() {
   btn.textContent = '⏳ Generando...'; btn.disabled = true;
 
   try {
-    await buildPDF(ticketN, code, name, email, dateObj, currentSeller.name);
+    const price = document.getElementById('f-price').value.trim() || '35,00';
+    await buildPDF(ticketN, code, name, email, dateObj, currentSeller.name, price);
     markUsed(currentSeller, ticketN);
-    issuedTickets.push({n:ticketN, code, name, email, date:dateObj.label, seller:currentSeller.name, ts:new Date().toLocaleString('es-ES')});
+    saveIssuedToStorage();
+    syncToSheets({n:ticketN, code, name, email, date:dateObj.label, price, seller:currentSeller.name, ts:new Date().toLocaleString('es-ES')});
+    issuedTickets.push({n:ticketN, code, name, email, date:dateObj.label, seller:currentSeller.name, price, dateObj, ts:new Date().toLocaleString('es-ES')});
     updateSellerInfo();
     updateIssuedList();
-    okEl.textContent = `✅ Entrada #${String(ticketN).padStart(4,'0')} generada correctamente.`;
+    okEl.textContent = `✅ Entrada #${String(ticketN).padStart(4,'0')} generada y registrada en Google Sheets.`;
     okEl.style.display='block';
     document.getElementById('f-name').value='';
     document.getElementById('f-email').value='';
     document.getElementById('f-date').value='';
+    document.getElementById('f-price').value='';
   } catch(e) {
     errEl.textContent='Error al generar el PDF: '+e.message;
     errEl.style.display='block';
@@ -455,18 +511,72 @@ async function generateTicket() {
 function updateIssuedList() {
   const sec = document.getElementById('csv-section');
   const list = document.getElementById('issued-list');
-  sec.style.display='block';
+  sec.style.display = issuedTickets.length > 0 ? 'block' : 'none';
   list.innerHTML='';
   for(const t of [...issuedTickets].reverse()) {
     const li=document.createElement('li');
-    li.innerHTML=`<div><div class="il-name">${t.name}</div><div class="il-code">${t.code}</div></div><div class="il-date">${t.date.split('·')[0].trim()}</div>`;
+    li.innerHTML=`
+      <div style="flex:1;min-width:0;">
+        <div class="il-name">${t.name}</div>
+        <div class="il-code">${t.code} · ${t.price||'35,00'}€</div>
+        <div class="il-date">${t.date}</div>
+      </div>
+      <button onclick="regenPDF(${t.n})" style="background:#1a0000;border:0.5px solid #cc0000;color:#cc0000;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;">↺ PDF</button>
+    `;
     list.appendChild(li);
   }
 }
 
+const SHEETS_URL = "https://script.google.com/macros/s/AKfycbzGpqiG8he0fD09RriTdwXtnIrNy7ZKUdoTd_saHTmLzYEXnvlxtpBITapHhP9FowCj/exec";
+
+function saveIssuedToStorage() {
+  if(!currentSeller) return;
+  const key = `issued_${currentSeller.name}`;
+  localStorage.setItem(key, JSON.stringify(issuedTickets));
+}
+
+async function syncToSheets(ticket) {
+  try {
+    await fetch(SHEETS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(ticket)
+    });
+  } catch(e) {
+    console.warn('No se pudo sincronizar con Sheets:', e);
+  }
+}
+
+function loadIssuedFromStorage() {
+  if(!currentSeller) return;
+  const key = `issued_${currentSeller.name}`;
+  const stored = localStorage.getItem(key);
+  if(stored) {
+    issuedTickets = JSON.parse(stored);
+    updateIssuedList();
+  }
+}
+
+async function regenPDF(ticketN) {
+  const t = issuedTickets.find(x => x.n === ticketN);
+  if(!t) return;
+  const code = validCodesGen[ticketN - 1];
+  const btn = event.target;
+  btn.textContent = '⏳';
+  btn.disabled = true;
+  try {
+    await buildPDF(t.n, code, t.name, t.email, t.dateObj, t.seller, t.price||'35,00');
+  } catch(e) {
+    alert('Error al regenerar: ' + e.message);
+  }
+  btn.textContent = '↺ PDF';
+  btn.disabled = false;
+}
+
 function exportCSV() {
-  const header = 'Nº,Código,Nombre,Email,Fecha,Vendedor,Timestamp';
-  const rows = issuedTickets.map(t=>`${t.n},${t.code},"${t.name}","${t.email||''}","${t.date}","${t.seller}","${t.ts}"`);
+  const header = 'Nº,Código,Nombre,Email,Fecha,Precio,Vendedor,Timestamp';
+  const rows = issuedTickets.map(t=>`${t.n},${t.code},"${t.name}","${t.email||''}","${t.date}","${t.price||'35,00'}","${t.seller}","${t.ts}"`);
   const csv = [header,...rows].join('\n');
   const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a');
@@ -475,7 +585,7 @@ function exportCSV() {
   a.click();
 }
 
-async function buildPDF(ticketN, code, buyerName, buyerEmail, dateObj, sellerName) {
+async function buildPDF(ticketN, code, buyerName, buyerEmail, dateObj, sellerName, price='35,00') {
   const {jsPDF} = window.jspdf;
   // A4 landscape: 297 x 210 mm
   const doc = new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
@@ -554,7 +664,7 @@ async function buildPDF(ticketN, code, buyerName, buyerEmail, dateObj, sellerNam
   }
   const col1=rx, col2=rx+(W-rx-8)*0.52;
   labelVal(col1,50,'Fecha',dateObj.date,dateObj.time+' h');
-  labelVal(col2,50,'Precio','35,00 €','Incluye cena + consumición');
+  labelVal(col2,50,'Precio',price+' €','Incluye cena + consumición');
   labelVal(col1,68,'Recinto','Italian Trattoria','Ronda de la Universitat, 35');
   labelVal(col2,68,'Localidad','Barcelona','Eixample · 08007');
   labelVal(col1,86,'Titular',buyerName,buyerEmail||null);
@@ -575,18 +685,18 @@ async function buildPDF(ticketN, code, buyerName, buyerEmail, dateObj, sellerNam
   const qrContainer=document.getElementById('qr-tmp');
   qrContainer.innerHTML='';
   const qrDiv=document.createElement('div');
-  qrDiv.style.cssText='width:120px;height:120px;background:white;padding:4px;';
+  qrDiv.style.cssText='width:200px;height:200px;background:white;padding:6px;';
   qrContainer.appendChild(qrDiv);
   const qrPayload=`TRANSFORMADAS|${code}|${buyerName}|${dateObj.date}|35EUR`;
   await new Promise((res,rej)=>{
-    new QRCode(qrDiv,{text:qrPayload,width:112,height:112,correctLevel:QRCode.CorrectLevel.M});
+    new QRCode(qrDiv,{text:qrPayload,width:188,height:188,correctLevel:QRCode.CorrectLevel.H});
     setTimeout(res,300);
   });
   const qrCanvas=qrDiv.querySelector('canvas');
   if(qrCanvas){
     const qrData=qrCanvas.toDataURL('image/png');
     const stubH=H-tearY-5;
-    const qrSize=Math.min(stubH*0.85,26);
+    const qrSize=Math.min(stubH*0.92,40);
     const qrY=tearY+4+(stubH-qrSize)/2;
     doc.addImage(qrData,'PNG',rx,qrY,qrSize,qrSize);
 
@@ -605,7 +715,9 @@ async function buildPDF(ticketN, code, buyerName, buyerEmail, dateObj, sellerNam
   }
 
   const filename=`entrada_TRANSFORMADAS_${String(ticketN).padStart(4,'0')}_${buyerName.replace(/\s+/g,'_')}.pdf`;
-  doc.save(filename);
+  const pdfBlob = doc.output('blob');
+  const pdfUrl = URL.createObjectURL(pdfBlob);
+  window.open(pdfUrl, '_blank');
 }
 </script>
 </body>
