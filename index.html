@@ -527,11 +527,11 @@ async function generateTicket() {
 
   try {
     const price = document.getElementById('f-price').value.trim() || '35,00';
-    await buildPDF(ticketN, code, name, email, dateObj, currentSeller.name, price);
+    const driveUrl = await buildPDF(ticketN, code, name, email, dateObj, currentSeller.name, price);
     markUsed(currentSeller, ticketN);
     saveIssuedToStorage();
     syncToSheets({n:ticketN, code, name, email, date:dateObj.label, price, seller:currentSeller.name, ts:new Date().toLocaleString('es-ES')});
-    issuedTickets.push({n:ticketN, code, name, email, date:dateObj.label, seller:currentSeller.name, price, dateObj, ts:new Date().toLocaleString('es-ES')});
+    issuedTickets.push({n:ticketN, code, name, email, date:dateObj.label, seller:currentSeller.name, price, dateObj, driveUrl: driveUrl||null, ts:new Date().toLocaleString('es-ES')});
     updateSellerInfo();
     updateIssuedList();
     okEl.textContent = `✅ Entrada #${String(ticketN).padStart(4,'0')} generada y registrada en Google Sheets.`;
@@ -555,19 +555,26 @@ function updateIssuedList() {
   list.innerHTML='';
   for(const t of [...issuedTickets].reverse()) {
     const li=document.createElement('li');
+    const driveBtn = t.driveUrl
+      ? `<a href="${t.driveUrl}" target="_blank" style="background:#0d2e0d;border:0.5px solid #2e7d2e;color:#4caf50;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;text-decoration:none;">🔗 Link</a>`
+      : '';
     li.innerHTML=`
       <div style="flex:1;min-width:0;">
         <div class="il-name">${t.name}</div>
         <div class="il-code">${t.code} · ${t.price||'35,00'}€</div>
         <div class="il-date">${t.date}</div>
       </div>
-      <button onclick="regenPDF(${t.n})" style="background:#1a0000;border:0.5px solid #cc0000;color:#cc0000;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;">↺ PDF</button>
+      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+        <button onclick="regenPDF(${t.n})" style="background:#1a0000;border:0.5px solid #cc0000;color:#cc0000;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;white-space:nowrap;">↺ PDF</button>
+        ${driveBtn}
+      </div>
     `;
     list.appendChild(li);
   }
 }
 
 const SHEETS_URL = "https://script.google.com/macros/s/AKfycbzGpqiG8he0fD09RriTdwXtnIrNy7ZKUdoTd_saHTmLzYEXnvlxtpBITapHhP9FowCj/exec";
+const DRIVE_URL = "https://script.google.com/macros/s/AKfycbxkzSLiMHXu_8g6ct6HvMcXb2u4FAUedO1ZUDHNQFx8OzXqsypnNH4z4fVcsYRz_J2q/exec";
 
 function saveIssuedToStorage() {
   if(!currentSeller) return;
@@ -787,8 +794,24 @@ async function buildPDF(ticketN, code, buyerName, buyerEmail, dateObj, sellerNam
 
   const filename=`entrada_TRANSFORMADAS_${String(ticketN).padStart(4,'0')}_${buyerName.replace(/\s+/g,'_')}.pdf`;
   const pdfBlob = doc.output('blob');
-  const pdfUrl = URL.createObjectURL(pdfBlob);
-  window.open(pdfUrl, '_blank');
+  const localUrl = URL.createObjectURL(pdfBlob);
+  window.open(localUrl, '_blank');
+  // Upload to Drive in background
+  try {
+    const base64 = doc.output('datauristring').split(',')[1];
+    const resp = await fetch(DRIVE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({pdf: base64, filename: filename})
+    });
+    const result = await resp.json();
+    if(result.status === 'ok') {
+      return result.url;
+    }
+  } catch(e) {
+    console.warn('No se pudo subir a Drive:', e);
+  }
+  return null;
 }
 
 // ── AFORO ──
