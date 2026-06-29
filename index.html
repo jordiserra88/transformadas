@@ -574,7 +574,7 @@ function updateIssuedList() {
 }
 
 const SHEETS_URL = "https://script.google.com/macros/s/AKfycbzGpqiG8he0fD09RriTdwXtnIrNy7ZKUdoTd_saHTmLzYEXnvlxtpBITapHhP9FowCj/exec";
-const DRIVE_URL = "https://script.google.com/macros/s/AKfycbz7PCTiCIhBu-PW_Gjord2v3IsATdXV8lEU4h-qtCNm0TOUBSTRf1FWtzzrMnEVBfA/exec";
+const DRIVE_URL = "https://script.google.com/macros/s/AKfycbxFP6PXImy4iKT141Y1uvWDOdBu6soauP0dRftBpd-TKrAj_gr8_tVt8kkq_O5s_PM/exec";
 
 function saveIssuedToStorage() {
   if(!currentSeller) return;
@@ -796,14 +796,11 @@ async function buildPDF(ticketN, code, buyerName, buyerEmail, dateObj, sellerNam
   const pdfBlob = doc.output('blob');
   const localUrl = URL.createObjectURL(pdfBlob);
   window.open(localUrl, '_blank');
-  // Upload to Drive in background
+  // Upload to Drive in background via no-cors GET
   try {
     const base64 = doc.output('datauristring').split(',')[1];
-    const resp = await fetch(DRIVE_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({pdf: base64, filename: filename})
-    });
+    const params = encodeURIComponent(JSON.stringify({pdf: base64, filename: filename}));
+    const resp = await fetch(DRIVE_URL + '?payload=' + params);
     const result = await resp.json();
     if(result.status === 'ok') {
       return result.url;
