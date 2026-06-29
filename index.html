@@ -529,9 +529,10 @@ async function generateTicket() {
     const price = document.getElementById('f-price').value.trim() || '35,00';
     const driveUrl = await buildPDF(ticketN, code, name, email, dateObj, currentSeller.name, price);
     markUsed(currentSeller, ticketN);
+    const ts = new Date().toLocaleString('es-ES');
+    issuedTickets.push({n:ticketN, code, name, email, date:dateObj.label, seller:currentSeller.name, price, dateObj, driveUrl: driveUrl||null, ts});
     saveIssuedToStorage();
-    syncToSheets({n:ticketN, code, name, email, date:dateObj.label, price, seller:currentSeller.name, ts:new Date().toLocaleString('es-ES')});
-    issuedTickets.push({n:ticketN, code, name, email, date:dateObj.label, seller:currentSeller.name, price, dateObj, driveUrl: driveUrl||null, ts:new Date().toLocaleString('es-ES')});
+    syncToSheets({n:ticketN, code, name, email, date:dateObj.label, price, seller:currentSeller.name, ts});
     updateSellerInfo();
     updateIssuedList();
     okEl.textContent = `✅ Entrada #${String(ticketN).padStart(4,'0')} generada y registrada en Google Sheets.`;
@@ -799,17 +800,27 @@ async function buildPDF(ticketN, code, buyerName, buyerEmail, dateObj, sellerNam
   // Upload ticket data to Drive (generates HTML entry)
   try {
     const ticketData = {
-      code, buyerName, buyerEmail, date: dateObj.date, time: dateObj.time,
-      price, sellerName, ticketN: String(ticketN).padStart(4,'0')
+      code: code,
+      buyerName: buyerName,
+      buyerEmail: buyerEmail || '',
+      date: dateObj.date,
+      time: dateObj.time,
+      price: price,
+      sellerName: sellerName,
+      ticketN: String(ticketN).padStart(4,'0')
     };
     const params = encodeURIComponent(JSON.stringify(ticketData));
-    const resp = await fetch(DRIVE_URL + '?ticket=' + params);
-    const result = await resp.json();
-    if(result.status === 'ok') {
-      return result.url;
+    const driveResp = await fetch(DRIVE_URL + '?ticket=' + params);
+    const driveText = await driveResp.text();
+    console.log('Drive response:', driveText);
+    const driveResult = JSON.parse(driveText);
+    if(driveResult.status === 'ok' && driveResult.url) {
+      return driveResult.url;
+    } else {
+      console.warn('Drive error:', driveResult);
     }
   } catch(e) {
-    console.warn('No se pudo subir a Drive:', e);
+    console.warn('Drive fetch failed:', e.message);
   }
   return null;
 }
