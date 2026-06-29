@@ -527,10 +527,10 @@ async function generateTicket() {
 
   try {
     const price = document.getElementById('f-price').value.trim() || '35,00';
-    const driveUrl = await buildPDF(ticketN, code, name, email, dateObj, currentSeller.name, price);
+    await buildPDF(ticketN, code, name, email, dateObj, currentSeller.name, price);
     markUsed(currentSeller, ticketN);
     const ts = new Date().toLocaleString('es-ES');
-    issuedTickets.push({n:ticketN, code, name, email, date:dateObj.label, seller:currentSeller.name, price, dateObj, driveUrl: driveUrl||null, ts});
+    issuedTickets.push({n:ticketN, code, name, email, date:dateObj.label, seller:currentSeller.name, price, dateObj, ts});
     saveIssuedToStorage();
     syncToSheets({n:ticketN, code, name, email, date:dateObj.label, price, seller:currentSeller.name, ts});
     updateSellerInfo();
@@ -556,26 +556,19 @@ function updateIssuedList() {
   list.innerHTML='';
   for(const t of [...issuedTickets].reverse()) {
     const li=document.createElement('li');
-    const driveBtn = t.driveUrl
-      ? `<a href="${t.driveUrl}" target="_blank" style="background:#0d2e0d;border:0.5px solid #2e7d2e;color:#4caf50;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;text-decoration:none;">🔗 Link</a>`
-      : '';
     li.innerHTML=`
       <div style="flex:1;min-width:0;">
         <div class="il-name">${t.name}</div>
         <div class="il-code">${t.code} · ${t.price||'35,00'}€</div>
         <div class="il-date">${t.date}</div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
-        <button onclick="regenPDF(${t.n})" style="background:#1a0000;border:0.5px solid #cc0000;color:#cc0000;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;white-space:nowrap;">↺ PDF</button>
-        ${driveBtn}
-      </div>
+      <button onclick="regenPDF(${t.n})" style="background:#1a0000;border:0.5px solid #cc0000;color:#cc0000;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;">↺ PDF</button>
     `;
     list.appendChild(li);
   }
 }
 
 const SHEETS_URL = "https://script.google.com/macros/s/AKfycbzGpqiG8he0fD09RriTdwXtnIrNy7ZKUdoTd_saHTmLzYEXnvlxtpBITapHhP9FowCj/exec";
-const DRIVE_URL = "https://script.google.com/macros/s/AKfycbxNOgXDSjeAoksBvH4tR1QGmQhkCAbGC7DYcgYk5SFDB5o_OJxn1yaI-bN_l8cVjzQ/exec";
 
 function saveIssuedToStorage() {
   if(!currentSeller) return;
@@ -793,36 +786,11 @@ async function buildPDF(ticketN, code, buyerName, buyerEmail, dateObj, sellerNam
     doc.text('Escanea el QR para verificar la autenticidad de esta entrada.',vx,vy-qrSize+22);
   }
 
-  const filename=`entrada_TRANSFORMADAS_${String(ticketN).padStart(4,'0')}_${buyerName.replace(/\s+/g,'_')}.pdf`;
+  const filename=`TRANSFORMADAS_${String(ticketN).padStart(4,'0')}_${buyerName.replace(/\s+/g,'_')}.pdf`;
   const pdfBlob = doc.output('blob');
   const localUrl = URL.createObjectURL(pdfBlob);
   window.open(localUrl, '_blank');
-  // Upload ticket data to Drive (generates HTML entry)
-  try {
-    const ticketData = {
-      code: code,
-      buyerName: buyerName,
-      buyerEmail: buyerEmail || '',
-      date: dateObj.date,
-      time: dateObj.time,
-      price: price,
-      sellerName: sellerName,
-      ticketN: String(ticketN).padStart(4,'0')
-    };
-    const params = encodeURIComponent(JSON.stringify(ticketData));
-    const driveResp = await fetch(DRIVE_URL + '?ticket=' + params);
-    const driveText = await driveResp.text();
-    console.log('Drive response:', driveText);
-    const driveResult = JSON.parse(driveText);
-    if(driveResult.status === 'ok' && driveResult.url) {
-      return driveResult.url;
-    } else {
-      console.warn('Drive error:', driveResult);
-    }
-  } catch(e) {
-    console.warn('Drive fetch failed:', e.message);
-  }
-  return null;
+
 }
 
 // ── AFORO ──
